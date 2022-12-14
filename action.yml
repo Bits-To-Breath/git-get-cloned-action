@@ -1,0 +1,123 @@
+---
+
+name: 'Git Get Cloned Action'
+description: 'GitHub Action for copying files or folders to another repository with optionally creating the repository too.'
+author: Austin Hogan
+branding:
+  icon: 'copy'
+  color: 'white'
+inputs:
+  source_auth_id:
+    description: "Source authentication username or type such as oauth2."
+    required: true
+  source_auth_token:
+    description: "Source personal token or oauth2 token."
+    required: true
+  destination_owner:
+    description: "Destination github repository owner."
+    required: true
+    default: ""
+  destination_repo_name:
+    description: "Destination repository name."
+    required: true
+    default: ""
+  destination_path:
+    description: "Destination repository path."
+    required: false
+    default: ""
+  source_is_private:
+    description: "Destination repository is private"
+    required: false
+    default: true
+  source_is_template:
+    description: "Source repository is template"
+    required: false
+    default: false
+  source_service:
+    description: "Source service domain."
+    required: false
+    default: "github.com"
+  source_owner:
+    description: "Source github repository owner."
+    required: false
+    default: ""
+  source_repo_name:
+    description: "Source repository name."
+    required: false
+    default: ""
+  source_branch:
+    description: "Source repository branch name."
+    required: false
+    default: ""
+  source_path:
+    description: "Source repository path."
+    required: false
+    default: ""
+  source_wiki:
+    description: "Directory of source wiki."
+    required: false
+    default: ""
+  source_default_branch:
+    description: "Default source branch name if creating new."
+    required: false
+    default: ""
+  destination_is_private:
+    description: "Destination repository is private"
+    required: false
+    default: true
+  destination_is_template:
+    description: "Destination repository is template"
+    required: false
+    default: false
+  destination_auth_id:
+    description: "Destination authentication username or type such as oauth2."
+    required: false
+    default: ""
+  destination_auth_token:
+    description: "Destination personal token or oauth2 token."
+    required: false
+    default: ""
+  destination_service:
+    description: "Destination service domain."
+    required: false
+    default: "github.com"
+  destination_branch:
+    description: "Destination repository branch name."
+    required: false
+    default: ""
+  destination_wiki:
+    description: "Directory of source wiki."
+    required: false
+    default: ""
+  destination_default_branch:
+    description: "Default destination branch name if creating new."
+    required: false
+    default: ""
+  destination_clean:
+    description: "Clean destination."
+    required: false
+    default: false
+  select_regex:
+    description: "Perl regex to select files/folders by matching path information."
+    required: false
+    default: ""
+  ignore_regex:
+    description: "Perl regex to ignore files/folders by matching path information" 
+    required: false
+    default: ""
+  commit_message:
+    description: "Message summary of changes"
+    required: false
+    default: ""
+  commit_username:
+    description: "Username of commit user"
+    required: false
+    default: ""
+  commit_email:
+    description: "Email of commit user"
+    required: false
+    default: ""
+  code_env:
+    description: "Environment to process data. For debugging."
+    required: false
+    default: ""
