@@ -1,7 +1,7 @@
 ---
 
 name: 'Git Get Cloned Action'
-description: 'GitHub Action for copying files or folders to another repository with optionally creating the repository too.'
+description: 'GitHub Action for cloning repository fully or some files or folders to another repository; optionally creates repository and more.'
 author: Austin Hogan
 branding:
   icon: 'copy'

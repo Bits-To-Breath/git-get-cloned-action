@@ -17,7 +17,7 @@ The following workflow example will use as many default options as possible. It 
 
 ```yaml
     - name: Clone
-      uses: Bits-To-Breath/git-get-cloned-action@v1
+      uses: Bits-To-Breath/git-get-cloned-action@latest
       with:
         source_auth_id: Bits-To-Breath
         source_auth_token: ${{ secrets.PERSONAL_TOKEN }}
