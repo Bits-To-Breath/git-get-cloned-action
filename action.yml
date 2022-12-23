@@ -121,3 +121,36 @@ inputs:
     description: "Environment to process data. For debugging."
     required: false
     default: ""
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  args:
+    - ${{ inputs.source_auth_id }}
+    - ${{ inputs.source_auth_token }}
+    - ${{ inputs.destination_owner }}
+    - ${{ inputs.destination_repo_name }}
+    - ${{ inputs.destination_path }}
+    - ${{ inputs.source_is_private }}
+    - ${{ inputs.source_is_template }}
+    - ${{ inputs.source_service }}
+    - ${{ inputs.source_owner }}
+    - ${{ inputs.source_repo_name }}
+    - ${{ inputs.source_branch }}
+    - ${{ inputs.source_path }}
+    - ${{ inputs.source_wiki }}
+    - ${{ inputs.source_default_branch }}
+    - ${{ inputs.destination_is_private }}
+    - ${{ inputs.destination_is_template }}
+    - ${{ inputs.destination_auth_id }}
+    - ${{ inputs.destination_auth_token }}
+    - ${{ inputs.destination_service }}
+    - ${{ inputs.destination_branch }}
+    - ${{ inputs.destination_wiki }}
+    - ${{ inputs.destination_default_branch }}
+    - ${{ inputs.destination_clean }}
+    - ${{ inputs.select_regex }}
+    - ${{ inputs.ignore_regex }}
+    - ${{ inputs.commit_message }}
+    - ${{ inputs.commit_username }}
+    - ${{ inputs.commit_email }}
+    - ${{ inputs.code_env }}
