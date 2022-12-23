@@ -35,6 +35,11 @@ The following workflow example will use as many default options as possible. It 
  - Clone specific branch at source and to specific destination branch, with specific default branch at source and destination; creates new branches, derived from the default branch if possible
  - Clone using specific commit message, email and username (username should pair with the access token)
 
+## Common Mistakes and Pitfalls
+ - Invalid regexes, please make use of [https://regex101.com/](https://regex101.com/) to test your full paths againt your custom regex. Disabling global and multiline is recommended.
+ - If using destination_clean please be careful how you use it, it will clear out your destination repository where you will likely need to revert commits.
+ - Please look below 0at `Options` or use [action.yml](/action.yml) to view all the available options
+
 ## Options ⚙️
 
 The following is the exhaustive list of options:

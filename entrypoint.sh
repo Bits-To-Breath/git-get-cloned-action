@@ -59,11 +59,26 @@ SOURCE_TEMP="SOURCE_TEMP"                                           # define sou
 DESTINATION_TEMP="DESTINATION_TEMP"                                 # define destination temporary directory to store git repo
 PROGNAME="$(basename $0)"                                           # define program name variable
 ROOT_DIR="$(pwd)"                                                   # define root directory variable
-TEMP_REPOSITORY_TYPE=""                                             # defint temporary variable for repository type {organization, user}
+TEMP_REPOSITORY_TYPE=""                                             # define temporary variable for repository type {organization, user}
+RC=-1                                                               # define return code or RC of the previous command
 
 ## Cleanup for Local Testing
-rm -rf "${SOURCE_TEMP}"                                         # remove source temp repository
-rm -rf "${DESTINATION_TEMP}"                                    # remove destination temp repository
+if [ -d "${SOURCE_TEMP}" ] || [ -d "${DESTINATION_TEMP}" ]      # check if source or destination temporary folder exists from last run
+then                                                            # if true then {}
+    rm -rf "${SOURCE_TEMP}"                                     # remove source temp repository
+    rm -rf "${DESTINATION_TEMP}"                                # remove destination temp repository
+fi                                                              # (end if)
+
+## Make temporary directories
+echo "making temporary folders"                                 # echo context
+mkdir -p "${SOURCE_TEMP}"                                       # make source temporary directory
+mkdir -p "${DESTINATION_TEMP}"                                  # make destination temporary directory
+
+## Copy Perl regex script to working directory
+if [[ -f /reg.pl ]]; then                                       # check file exists at top directory
+    echo "copying reg.pl to ${ROOT_DIR}"                        # echo context, copying reg.pl to working directory
+    cp /reg.pl "${ROOT_DIR}"                                    # run simple copy
+fi                                                              # (end if)
 
 ## Error Management
 if [ "${CODE_ENV}" = "pre-dev" ]; then                          # check is pre-development environment (local)
@@ -266,7 +281,7 @@ echo "Attempting to copy source of REPO \
 https://${SOURCE_SERVICE}/${SOURCE_OWNER}\
 /${SOURCE_REPO_NAME}.git to REPO \
 https://${DESTINATION_SERVICE}/${DESTINATION_OWNER}\
-/${SOURCE_REPO_NAME}.git"                                           # echo context of copy procedure
+/${DESTINATION_REPO_NAME}.git"                                      # echo context of copy procedure
 
 ## Assign globals
 SOURCE_REPO=${SOURCE_OWNER}/${SOURCE_REPO_NAME}                     # set repository path for source
@@ -322,13 +337,13 @@ function repo_exists_and_initialized() {                            # declare re
     local default_branch=$6                                         # repository default branch
     local is_private=$7                                             # repository is private
     local is_template=$8                                            # repository is template
-    echo "looking for repo or creating one"                         # echo context
+    echo "looking for repo or creating one, ${repo}"                # echo context
     mkdir -p "${ROOT_DIR}/${temp}"                                  # make full path of directory at root using the temporary repository directory name
     cd "${ROOT_DIR}"                                                # change directory to root and temporary repository directory name
     git ls-remote \
-        "https://${auth}@${service}/${repo}.git" -q ||              # list/check remote repository and ignore trap
-    if [ "$?" -ne 0 ]; then                                         # repository does not exist?
-        echo "repo ${service}/${repo} does not exist"               # echo context
+        "https://${auth}@${service}/${repo}.git" -q || RC=$?        # list/check remote repository and ignore trap
+    if [ "$RC" -ne 0 ]; then                                        # repository does not exist?
+        echo "repo ${repo} does not exist"                          # echo context
         repo_owner_type "${auth}" "${repo}"                         # assign repo_owner_type
         uri_path=""                                                 # assign uri path to empty string
         if [ "${TEMP_REPOSITORY_TYPE}" = "User" ]; then             # is User type owner
@@ -373,7 +388,7 @@ function repo_branch_exists() {                                     # declare re
     local default_branch=$6                                         # repository default branch
     echo "checking repo ${repo} has"\
         "default branch '${default_branch}'"\
-        "and new target '${branch}';"\
+        "and target branch '${branch}';"\
         "if not create"                                             # echo context
     cd "${ROOT_DIR}/${temp}"                                        # change directory to root and temporary repository directory name
     git rev-parse --verify "${default_branch}"                      # verify branch exists
@@ -384,8 +399,8 @@ function repo_branch_exists() {                                     # declare re
         git checkout -b "${default_branch}"                         # checkout git branch
         git push -u origin "${default_branch}"                      # push defaul branch
     fi                                                              # (end if)
-    git rev-parse --verify "${branch}"                              # verify branch exists
-    if [ "$?" -ne 0 ]                                               # target branch DNE
+    git rev-parse --verify "origin/${branch}" || RC=$?              # verify branch exists
+    if [ "$RC" -ne 0 ]                                               # target branch DNE
     then                                                            # if true
         echo "creating default branch '${branch}'"\
             "from ${default_branch}"                                # echo context
@@ -441,22 +456,23 @@ unset IFS                                                           # unset IFS
 
 for dir_obj in "${DIRECTORY_OBJECTS[@]}"; do                        # begin for loop
     perl "${ROOT_DIR}/reg.pl" \
-        "${SELECT_REGEX}" "${dir_obj}" "pre-dev"                    # get regex result
-    if [ "$?" -eq "0" ] && [ -f "${dir_obj}" ]; then                # compare regex result and check if it is a file to move
+        "${SELECT_REGEX}" "${dir_obj}" "pre-dev" ||  RC=$?          # get regex result
+    if [ "$RC" -eq "0" ] && [ -f "${dir_obj}" ]; then               # compare regex result and check if it is a file to move
         SELECT_FILES+=("${dir_obj}")                                # append directory object to
     fi                                                              # (end if)
 done                                                                # (done loop)
 
 for dir_obj in "${SELECT_FILES[@]}"; do                             # begin for loop
-    perl "${ROOT_DIR}/reg.pl" "${IGNORE_REGEX}" "${dir_obj}" ||     # get regex result
-    if [ "$?" -eq "1" ]; then                                       # compare regex result and check if it is a file to move
+    perl "${ROOT_DIR}/reg.pl" \
+        "${IGNORE_REGEX}" "${dir_obj}" || RC=$?                     # get regex result
+    if [ "$RC" -eq "1" ]; then                                      # compare regex result and check if it is a file to move
         MOVE_FILES+=("${dir_obj}")                                  # append directory object to 
     fi                                                              # (end if)
 done                                                                # (done loop)
 
 for dir_obj in "${MOVE_FILES[@]}"; do                               # begin for loop
-    local src="${ROOT_DIR}/${SOURCE_TEMP}"                          # source path
-    local dst="${ROOT_DIR}/${DESTINATION_TEMP}"                     # destination path
+    src="${ROOT_DIR}/${SOURCE_TEMP}"                                # source path
+    dst="${ROOT_DIR}/${DESTINATION_TEMP}"                           # destination path
     dst_obj=$(echo "${dir_obj}" | sed "s#${src}#${dst}#")           # assign destination object
     path_obj="$(dirname $dst_obj)"                                  # assign path object from file path
     mkdir -p ${path_obj}                                            # make directory inside object destination
@@ -466,11 +482,12 @@ done                                                                # (done loop
 cd "${ROOT_DIR}/${DESTINATION_TEMP}"                                # change to destination folder
 
 ## Copy wikis
-echo "Copy wiki if needed"                                          # copy the wiki if needed
 if [ -n "${SOURCE_WIKI}" ]; then                                    # if source wiki exists
+    echo "Copying the wiki"                                         # copy the wiki if needed
+    src_wiki="${ROOT_DIR}/${SOURCE_TEMP}/${SOURCE_WIKI}"            # destination wiki
     dst_wiki="${ROOT_DIR}/${DESTINATION_TEMP}/${DESTINATION_WIKI}"  # destination wiki
     mkdir -p "${dst_wiki}"                                          # make path to destination wiki
-    cp -R "${SOURCE_WIKI}" "${dst_wiki}"                            # cp recursively source wiki
+    cp -R "${src_wiki}" "${dst_wiki}"                               # cp recursively source wiki
 fi                                                                  # (end if)
 
 ## Push changes
@@ -482,8 +499,8 @@ git push origin "${DESTINATION_BRANCH}"                             # git push o
 ## Cleanup
 echo "cleaning up repositories"                                     # echo context
 cd "${ROOT_DIR}"                                                    # enter root directory
-rm -rf "${SOURCE_TEMP}"                                             # remove source temp repository
-rm -rf "${DESTINATION_TEMP}"                                        # remove destination temp repository
+# rm -rf "${SOURCE_TEMP}"                                             # remove source temp repository
+# rm -rf "${DESTINATION_TEMP}"                                        # remove destination temp repository
 cd "${ROOT_DIR}"                                                    # change to root directory
 
 exit 0                                                              # end program success

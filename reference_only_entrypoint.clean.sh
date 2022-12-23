@@ -44,8 +44,20 @@ PROGNAME="$(basename $0)"
 ROOT_DIR="$(pwd)"
 TEMP_REPOSITORY_TYPE=""
 
-rm -rf "${SOURCE_TEMP}"
-rm -rf "${DESTINATION_TEMP}"
+if [ -d "${SOURCE_TEMP}" ] || [ -d "${DESTINATION_TEMP}" ]
+then
+    rm -rf "${SOURCE_TEMP}"
+    rm -rf "${DESTINATION_TEMP}"
+fi
+
+echo "making temporary folders"
+mkdir -p "${SOURCE_TEMP}"
+mkdir -p "${DESTINATION_TEMP}"
+
+if [[ -f /reg.pl ]]; then
+    echo "copying reg.pl to ${ROOT_DIR}"
+    cp /reg.pl "${ROOT_DIR}"
+fi
 
 if [ "${CODE_ENV}" = "pre-dev" ]; then
     set -Eeuxo pipefail
@@ -180,7 +192,7 @@ echo "Attempting to copy source of REPO \
 https://${SOURCE_SERVICE}/${SOURCE_OWNER}\
 /${SOURCE_REPO_NAME}.git to REPO \
 https://${DESTINATION_SERVICE}/${DESTINATION_OWNER}\
-/${SOURCE_REPO_NAME}.git"
+/${DESTINATION_REPO_NAME}.git"
 
 SOURCE_REPO=${SOURCE_OWNER}/${SOURCE_REPO_NAME}
 DESTINATION_REPO=${DESTINATION_OWNER}/${DESTINATION_REPO_NAME}
@@ -227,13 +239,13 @@ function repo_exists_and_initialized() {
     local default_branch=$6
     local is_private=$7
     local is_template=$8
-    echo "looking for repo or creating one"
+    echo "looking for repo or creating one, ${repo}"
     mkdir -p "${ROOT_DIR}/${temp}"
     cd "${ROOT_DIR}"
     git ls-remote \
         "https://${auth}@${service}/${repo}.git" -q ||
     if [ "$?" -ne 0 ]; then
-        echo "repo ${service}/${repo} does not exist"
+        echo "repo ${repo} does not exist"
         repo_owner_type "${auth}" "${repo}"
         uri_path=""
         if [ "${TEMP_REPOSITORY_TYPE}" = "User" ]; then
@@ -277,7 +289,7 @@ function repo_branch_exists() {
     local default_branch=$6
     echo "checking repo ${repo} has"\
         "default branch '${default_branch}'"\
-        "and new target '${branch}';"\
+        "and target branch '${branch}';"\
         "if not create"
     cd "${ROOT_DIR}/${temp}"
     git rev-parse --verify "${default_branch}"
@@ -288,7 +300,7 @@ function repo_branch_exists() {
         git checkout -b "${default_branch}"
         git push -u origin "${default_branch}"
     fi
-    git rev-parse --verify "${branch}"
+    git rev-parse --verify "origin/${branch}" ||
     if [ "$?" -ne 0 ]
     then
         echo "creating default branch '${branch}'"\
@@ -342,7 +354,7 @@ unset IFS
 
 for dir_obj in "${DIRECTORY_OBJECTS[@]}"; do
     perl "${ROOT_DIR}/reg.pl" \
-        "${SELECT_REGEX}" "${dir_obj}" "pre-dev"
+        "${SELECT_REGEX}" "${dir_obj}" "pre-dev" ||
     if [ "$?" -eq "0" ] && [ -f "${dir_obj}" ]; then
         SELECT_FILES+=("${dir_obj}")
     fi
@@ -356,8 +368,8 @@ for dir_obj in "${SELECT_FILES[@]}"; do
 done
 
 for dir_obj in "${MOVE_FILES[@]}"; do
-    local src="${ROOT_DIR}/${SOURCE_TEMP}"
-    local dst="${ROOT_DIR}/${DESTINATION_TEMP}"
+    src="${ROOT_DIR}/${SOURCE_TEMP}"
+    dst="${ROOT_DIR}/${DESTINATION_TEMP}"
     dst_obj=$(echo "${dir_obj}" | sed "s#${src}#${dst}#")
     path_obj="$(dirname $dst_obj)"
     mkdir -p ${path_obj}
@@ -366,8 +378,9 @@ done
 
 cd "${ROOT_DIR}/${DESTINATION_TEMP}"
 
-echo "Copy wiki if needed"
 if [ -n "${SOURCE_WIKI}" ]; then
+    echo "Copying the wiki"
+    src_wiki="${ROOT_DIR}/${SOURCE_TEMP}/${SOURCE_WIKI}"
     dst_wiki="${ROOT_DIR}/${DESTINATION_TEMP}/${DESTINATION_WIKI}"
     mkdir -p "${dst_wiki}"
     cp -R "${SOURCE_WIKI}" "${dst_wiki}"
@@ -380,8 +393,6 @@ git push origin "${DESTINATION_BRANCH}"
 
 echo "cleaning up repositories"
 cd "${ROOT_DIR}"
-rm -rf "${SOURCE_TEMP}"
-rm -rf "${DESTINATION_TEMP}"
 cd "${ROOT_DIR}"
 
 exit 0
