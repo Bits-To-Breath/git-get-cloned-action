@@ -43,6 +43,7 @@ DESTINATION_TEMP="DESTINATION_TEMP"
 PROGNAME="$(basename $0)"
 ROOT_DIR="$(pwd)"
 TEMP_REPOSITORY_TYPE=""
+RC=-1
 
 if [ -d "${SOURCE_TEMP}" ] || [ -d "${DESTINATION_TEMP}" ]
 then
@@ -196,6 +197,10 @@ https://${DESTINATION_SERVICE}/${DESTINATION_OWNER}\
 
 SOURCE_REPO=${SOURCE_OWNER}/${SOURCE_REPO_NAME}
 DESTINATION_REPO=${DESTINATION_OWNER}/${DESTINATION_REPO_NAME}
+SOURCE_GIT=$(readlink -m "${ROOT_DIR}/${SOURCE_TEMP}")
+SOURCE_FULL=$(readlink -m "${SOURCE_GIT}/${SOURCE_PATH}")
+DESTINATION_GIT=$(readlink -m "${ROOT_DIR}/${SOURCE_TEMP}")
+DESTINATION_FULL=$(readlink -m "${SOURCE_GIT}/${SOURCE_PATH}")
 
 git config --global user.name "${COMMIT_USERNAME}"
 git config --global user.email "${COMMIT_EMAIL}"
@@ -242,9 +247,10 @@ function repo_exists_and_initialized() {
     echo "looking for repo or creating one, ${repo}"
     mkdir -p "${ROOT_DIR}/${temp}"
     cd "${ROOT_DIR}"
+    RC=0
     git ls-remote \
-        "https://${auth}@${service}/${repo}.git" -q ||
-    if [ "$?" -ne 0 ]; then
+        "https://${auth}@${service}/${repo}.git" -q || RC=$?
+    if [ "$RC" -ne "0" ]; then
         echo "repo ${repo} does not exist"
         repo_owner_type "${auth}" "${repo}"
         uri_path=""
@@ -273,7 +279,7 @@ function repo_exists_and_initialized() {
         https://${auth}@${service}/${repo}.git ${temp}
     cd "${ROOT_DIR}/${temp}"
     git log -q ||
-    if [ "$?" -ne 0 ]; then
+    if [ "$?" -ne "0" ]; then
         echo "initializing repo ${repo}"
         init_repo "${repo}" "${default_branch}"
     fi
@@ -292,17 +298,18 @@ function repo_branch_exists() {
         "and target branch '${branch}';"\
         "if not create"
     cd "${ROOT_DIR}/${temp}"
-    git rev-parse --verify "${default_branch}"
-    if [ "$?" -ne 0 ]; then
+    RC=0
+    git rev-parse --verify "origin/${default_branch}" || RC=$?
+    if [ "$RC" -ne "0" ]; then
         echo "${service}/${repo} could not find default"\
             "branch ${default_branch}"\
             "creating"
         git checkout -b "${default_branch}"
         git push -u origin "${default_branch}"
     fi
-    git rev-parse --verify "origin/${branch}" ||
-    if [ "$?" -ne 0 ]
-    then
+    RC=0
+    git rev-parse --verify "origin/${branch}" || RC=$?
+    if [ "$RC" -ne "0" ]; then
         echo "creating default branch '${branch}'"\
             "from ${default_branch}"
         git checkout ${default_branch}
@@ -340,7 +347,7 @@ repo_prepare "${DESTINATION_AUTH_ID}:${DESTINATION_AUTH_TOKEN}"\
 
 if [ "${DESTINATION_CLEAN}" = "true" ]; then
     echo "Cleaning destination"
-    cd "${ROOT_DIR}/${DESTINATION_TEMP}"
+    cd "${ROOT_DIR}/${DESTINATION_TEMP}/${DESTINATION_PATH}"
     git rm -rf .
     git clean -fxd
     cd "${ROOT_DIR}"
@@ -353,46 +360,55 @@ DIRECTORY_OBJECTS=($(find $PWD))
 unset IFS
 
 for dir_obj in "${DIRECTORY_OBJECTS[@]}"; do
+    RC=0
     perl "${ROOT_DIR}/reg.pl" \
-        "${SELECT_REGEX}" "${dir_obj}" "pre-dev" ||
-    if [ "$?" -eq "0" ] && [ -f "${dir_obj}" ]; then
+        "${SELECT_REGEX}" "${dir_obj}" "pre-dev" ||  RC=$?
+    if [ "$RC" -eq "0" ] && [ -f "${dir_obj}" ]; then
         SELECT_FILES+=("${dir_obj}")
     fi
 done
 
 for dir_obj in "${SELECT_FILES[@]}"; do
-    perl "${ROOT_DIR}/reg.pl" "${IGNORE_REGEX}" "${dir_obj}" ||
-    if [ "$?" -eq "1" ]; then
+    RC=0
+    perl "${ROOT_DIR}/reg.pl" \
+        "${IGNORE_REGEX}" "${dir_obj}" || RC=$?
+    if [ "$RC" -eq "1" ]; then
         MOVE_FILES+=("${dir_obj}")
     fi
 done
 
 for dir_obj in "${MOVE_FILES[@]}"; do
-    src="${ROOT_DIR}/${SOURCE_TEMP}"
-    dst="${ROOT_DIR}/${DESTINATION_TEMP}"
-    dst_obj=$(echo "${dir_obj}" | sed "s#${src}#${dst}#")
+    src_f="${SOURCE_FULL}"
+    dst_f="${DESTINATION_FULL}"
+    dst_obj=$(echo "${dir_obj}" | sed "s#${src_f}#${dst_f}#")
     path_obj="$(dirname $dst_obj)"
     mkdir -p ${path_obj}
     cp "${dir_obj}" "${dst_obj}"
 done
 
-cd "${ROOT_DIR}/${DESTINATION_TEMP}"
+dst_path="${ROOT_DIR}/${DESTINATION_TEMP}/${DESTINATION_PATH}"
+mkdir -p "${dst_path}"
+cd "${dst_path}"
 
 if [ -n "${SOURCE_WIKI}" ]; then
     echo "Copying the wiki"
     src_wiki="${ROOT_DIR}/${SOURCE_TEMP}/${SOURCE_WIKI}"
     dst_wiki="${ROOT_DIR}/${DESTINATION_TEMP}/${DESTINATION_WIKI}"
     mkdir -p "${dst_wiki}"
-    cp -R "${SOURCE_WIKI}" "${dst_wiki}"
+    cp -R "${src_wiki}" "${dst_wiki}"
 fi
 
 echo "Pushing changes"
+cd "${ROOT_DIR}/${DESTINATION_TEMP}"
 git add .
-git commit -m  "${COMMIT_MESSAGE}" ||
+RC=0
+git commit -m  "${COMMIT_MESSAGE}" || RC=$?
 git push origin "${DESTINATION_BRANCH}"
 
 echo "cleaning up repositories"
 cd "${ROOT_DIR}"
+rm -rf "${SOURCE_TEMP}"
+rm -rf "${DESTINATION_TEMP}"
 cd "${ROOT_DIR}"
 
 exit 0

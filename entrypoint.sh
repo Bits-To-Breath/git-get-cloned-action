@@ -286,6 +286,12 @@ https://${DESTINATION_SERVICE}/${DESTINATION_OWNER}\
 ## Assign globals
 SOURCE_REPO=${SOURCE_OWNER}/${SOURCE_REPO_NAME}                     # set repository path for source
 DESTINATION_REPO=${DESTINATION_OWNER}/${DESTINATION_REPO_NAME}      # set repository path for desination
+SOURCE_GIT=$(echo "${ROOT_DIR}/${SOURCE_TEMP}" | tr -s /)           # set git source root path
+SOURCE_FULL=$(echo "${SOURCE_GIT}/${SOURCE_PATH}" | tr -s /)        # set git source full path
+DESTINATION_GIT=$(echo "${ROOT_DIR}/${DESTINATION_TEMP}" |
+    tr -s /)                                                        # set git destination root path
+DESTINATION_FULL=$(echo "${DESTINATION_GIT}/${DESTINATION_PATH}" |
+    tr -s /)                                                        # set git destination full path
 
 ## Assign git values
 git config --global user.name "${COMMIT_USERNAME}"                  # set git config global username
@@ -340,9 +346,10 @@ function repo_exists_and_initialized() {                            # declare re
     echo "looking for repo or creating one, ${repo}"                # echo context
     mkdir -p "${ROOT_DIR}/${temp}"                                  # make full path of directory at root using the temporary repository directory name
     cd "${ROOT_DIR}"                                                # change directory to root and temporary repository directory name
+    RC=0                                                            # assume return code success
     git ls-remote \
         "https://${auth}@${service}/${repo}.git" -q || RC=$?        # list/check remote repository and ignore trap
-    if [ "$RC" -ne 0 ]; then                                        # repository does not exist?
+    if [ "$RC" -ne "0" ]; then                                        # repository does not exist?
         echo "repo ${repo} does not exist"                          # echo context
         repo_owner_type "${auth}" "${repo}"                         # assign repo_owner_type
         uri_path=""                                                 # assign uri path to empty string
@@ -371,7 +378,7 @@ function repo_exists_and_initialized() {                            # declare re
         https://${auth}@${service}/${repo}.git ${temp}              # git clone repository into repository temporary directory
     cd "${ROOT_DIR}/${temp}"                                        # change directory to root and temporary repository directory name
     git log -q ||                                                   # check for commit log, fails if no commits exist and ignore trap
-    if [ "$?" -ne 0 ]; then                                         # if previous cmd is not successful initialize repository
+    if [ "$?" -ne "0" ]; then                                       # if previous cmd is not successful initialize repository
         echo "initializing repo ${repo}"                            # echo context
         init_repo "${repo}" "${default_branch}"                     # call init_repo with only two inputs as repository is created but not initialized
     fi                                                              # (end if)
@@ -391,17 +398,18 @@ function repo_branch_exists() {                                     # declare re
         "and target branch '${branch}';"\
         "if not create"                                             # echo context
     cd "${ROOT_DIR}/${temp}"                                        # change directory to root and temporary repository directory name
-    git rev-parse --verify "${default_branch}"                      # verify branch exists
-    if [ "$?" -ne 0 ]; then                                         # if default branch does not exist
+    RC=0                                                            # assume return code success
+    git rev-parse --verify "origin/${default_branch}" || RC=$?      # verify branch exists
+    if [ "$RC" -ne "0" ]; then                                      # if default branch does not exist
         echo "${service}/${repo} could not find default"\
             "branch ${default_branch}"\
             "creating"                                              # echo context
         git checkout -b "${default_branch}"                         # checkout git branch
         git push -u origin "${default_branch}"                      # push defaul branch
     fi                                                              # (end if)
+    RC=0                                                            # assume return code success
     git rev-parse --verify "origin/${branch}" || RC=$?              # verify branch exists
-    if [ "$RC" -ne 0 ]                                               # target branch DNE
-    then                                                            # if true
+    if [ "$RC" -ne "0" ]; then                                      # target branch DNE
         echo "creating default branch '${branch}'"\
             "from ${default_branch}"                                # echo context
         git checkout ${default_branch}                              # checkout default branch
@@ -441,7 +449,7 @@ repo_prepare "${DESTINATION_AUTH_ID}:${DESTINATION_AUTH_TOKEN}"\
 ## Clean destination if needed
 if [ "${DESTINATION_CLEAN}" = "true" ]; then                        # Clean destination
     echo "Cleaning destination"                                     # echo context
-    cd "${ROOT_DIR}/${DESTINATION_TEMP}"                            # change to destination directory
+    cd "${ROOT_DIR}/${DESTINATION_TEMP}/${DESTINATION_PATH}"        # change to destination directory
     git rm -rf .                                                    # git remove all files and folders except .git
     git clean -fxd                                                  # clean untracked files, remove ignored files, remove directories
     cd "${ROOT_DIR}"                                                # change to root directory
@@ -455,6 +463,7 @@ DIRECTORY_OBJECTS=($(find $PWD))                                    # find local
 unset IFS                                                           # unset IFS
 
 for dir_obj in "${DIRECTORY_OBJECTS[@]}"; do                        # begin for loop
+    RC=0                                                            # assume return code success
     perl "${ROOT_DIR}/reg.pl" \
         "${SELECT_REGEX}" "${dir_obj}" "pre-dev" ||  RC=$?          # get regex result
     if [ "$RC" -eq "0" ] && [ -f "${dir_obj}" ]; then               # compare regex result and check if it is a file to move
@@ -463,6 +472,7 @@ for dir_obj in "${DIRECTORY_OBJECTS[@]}"; do                        # begin for 
 done                                                                # (done loop)
 
 for dir_obj in "${SELECT_FILES[@]}"; do                             # begin for loop
+    RC=0                                                            # assume return code success
     perl "${ROOT_DIR}/reg.pl" \
         "${IGNORE_REGEX}" "${dir_obj}" || RC=$?                     # get regex result
     if [ "$RC" -eq "1" ]; then                                      # compare regex result and check if it is a file to move
@@ -471,36 +481,40 @@ for dir_obj in "${SELECT_FILES[@]}"; do                             # begin for 
 done                                                                # (done loop)
 
 for dir_obj in "${MOVE_FILES[@]}"; do                               # begin for loop
-    src="${ROOT_DIR}/${SOURCE_TEMP}"                                # source path
-    dst="${ROOT_DIR}/${DESTINATION_TEMP}"                           # destination path
-    dst_obj=$(echo "${dir_obj}" | sed "s#${src}#${dst}#")           # assign destination object
+    src_f="${SOURCE_FULL}"                                          # source full
+    dst_f="${DESTINATION_FULL}"                                     # destination full
+    dst_obj=$(echo "${dir_obj}" | sed "s#${src_f}#${dst_f}#")       # assign destination object, replace source with destination
     path_obj="$(dirname $dst_obj)"                                  # assign path object from file path
     mkdir -p ${path_obj}                                            # make directory inside object destination
     cp "${dir_obj}" "${dst_obj}"                                    # copy source files to destination files
 done                                                                # (done loop)
 
-cd "${ROOT_DIR}/${DESTINATION_TEMP}"                                # change to destination folder
+dst_path="${DESTINATION_FULL}"                                      # assign destination path
+mkdir -p "${dst_path}"                                              # make directory path
+cd "${dst_path}"                                                    # change to destination folder
 
 ## Copy wikis
 if [ -n "${SOURCE_WIKI}" ]; then                                    # if source wiki exists
     echo "Copying the wiki"                                         # copy the wiki if needed
-    src_wiki="${ROOT_DIR}/${SOURCE_TEMP}/${SOURCE_WIKI}"            # destination wiki
-    dst_wiki="${ROOT_DIR}/${DESTINATION_TEMP}/${DESTINATION_WIKI}"  # destination wiki
+    src_wiki="${SOURCE_GIT}/${SOURCE_WIKI}"                         # source wiki
+    dst_wiki="${DESTINATION_GIT}/${DESTINATION_WIKI}"               # destination wiki
     mkdir -p "${dst_wiki}"                                          # make path to destination wiki
     cp -R "${src_wiki}" "${dst_wiki}"                               # cp recursively source wiki
 fi                                                                  # (end if)
 
 ## Push changes
 echo "Pushing changes"                                              # echo context
+cd "${DESTINATION_GIT}"                                             # change directory into destination root
 git add .                                                           # git add all changes
-git commit -m  "${COMMIT_MESSAGE}" ||                               # git commit message
+RC=0                                                                # assume return code success
+git commit -m  "${COMMIT_MESSAGE}" || RC=$?                         # git commit message
 git push origin "${DESTINATION_BRANCH}"                             # git push origin to destination branch
 
 ## Cleanup
 echo "cleaning up repositories"                                     # echo context
 cd "${ROOT_DIR}"                                                    # enter root directory
-# rm -rf "${SOURCE_TEMP}"                                             # remove source temp repository
-# rm -rf "${DESTINATION_TEMP}"                                        # remove destination temp repository
+rm -rf "${SOURCE_TEMP}"                                             # remove source temp repository
+rm -rf "${DESTINATION_TEMP}"                                        # remove destination temp repository
 cd "${ROOT_DIR}"                                                    # change to root directory
 
 exit 0                                                              # end program success
